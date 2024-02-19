@@ -6,6 +6,7 @@
 #include <sys/syslimits.h>
 #include <unistd.h>
 #include <semaphore.h>
+#include <stdbool.h>
 
 // TODO:
 // Let DBUF_MAX_SIZE be configured by autogen build system
@@ -75,4 +76,5 @@ struct double_buffer {
     sem_t sem_consumer;
     size_t idx_producer;
     size_t idx_consumer;
+    bool consumed;
 };

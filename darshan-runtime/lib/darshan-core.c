@@ -2422,6 +2422,7 @@ static void darshan_init_shm(){
     dbuf->buf_consumer = dbuf->buffer_2;
     dbuf->idx_producer = 0;
     dbuf->idx_consumer = 0;
+    dbuf->consumed = true;
 
     return;
 }

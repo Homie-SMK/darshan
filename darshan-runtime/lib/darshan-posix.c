@@ -435,22 +435,29 @@ extern double_buffer* dbuf;
     posix_realtime_record rec; \
     strncpy(rec.path, __path, PATH_MAX); \
     rec.path[PATH_MAX - 1] = '\0'; \
-    rec.path = __path; \
     rec.pid = __darshan_core->pid; \
     rec.fd = __fd; \
     rec.op_type = __op_type; \
     rec.size = __size; \
-    sem_wait(&dbuf->sem_producer); \
-    dbuf->buf_producer[idx_producer++] = rec; \
-    sem_post(&dbuf->sem_producer);  \
-    if(idx_producer == DBUF_MAX_SIZE) { \
-        sem_post(&debuf->sem_consumer); \
-        idx_producer = 0;   \
-        if(dbuf->buf_producer == debuf->buffer_1) { \
-            dbuf->buf_producer = debuf->buffer_2;   \
-        } else {    \
-            dbuf->buf_producer = debuf->buffer_1;   \
-        }   \
+    if(dbuf->idx_producer != DBUF_MAX_SIZE) {   \
+        sem_wait(&dbuf->sem_producer); \
+        dbuf->buf_producer[dbuf->idx_producer++] = rec; \
+        sem_post(&dbuf->sem_producer);  \
+    }   \
+    if(dbuf->idx_producer == DBUF_MAX_SIZE) { \
+        if(dbuf->consumed) {    \
+            dbuf->idx_producer = 0; \
+            if(dbuf->buf_producer == dbuf->buffer_1) { \
+                dbuf->buf_producer = dbuf->buffer_2;   \
+                dbuf->buf_consumer = dbuf->buffer_1;   \
+            } else {    \
+                dbuf->buf_producer = dbuf->buffer_1;   \
+                dbuf->buf_consumer = dbuf->buffer_2;   \
+            }   \
+            sem_post(&dbuf->sem_consumer); \
+            dbuf->idx_producer = 0; \
+            dbuf->consumed = false; \
+        } \
     } \
 } while(0)
 #endif
