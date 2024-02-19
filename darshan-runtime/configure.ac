@@ -238,6 +238,13 @@ if test "x$enable_darshan_runtime" = xyes ; then
                          [Maximum runtime memory consumption per process (in MiB) for storing name records])
    fi
 
+   AC_ARG_ENABLE([realtime-prof],
+      [AS_HELP_STRING([--enable-realtime-prof], [Enable realtime profiling])],
+      [], [enable_realtime_prof=no]
+   )
+   if test x$enableval = xyes; then
+      AC_DEFINE(__DARSHAN_ENABLE_REALTIME_PROFILING, [], [Define if realtime profiling is enabled])
+
    #
    # Check for specific module enable/disable options
    #

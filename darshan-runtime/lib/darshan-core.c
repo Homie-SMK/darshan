@@ -18,6 +18,7 @@
 #ifdef HAVE_STDATOMIC_H
 #include <stdatomic.h>
 #endif
+
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
@@ -47,12 +48,17 @@
 #include "darshan-dynamic.h"
 #include "darshan-dxt.h"
 
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+#include "darshan-posix-realtime-profiling.h"
+#endif
+
 #ifdef DARSHAN_LUSTRE
 #include <lustre/lustre_user.h>
 #endif
 
 extern char* __progname;
 extern char* __progname_full;
+
 struct darshan_core_runtime *__darshan_core = NULL;
 double __darshan_core_wtime_offset = 0;
 #ifdef HAVE_STDATOMIC_H
@@ -60,6 +66,11 @@ atomic_flag __darshan_core_mutex = ATOMIC_FLAG_INIT;
 #else
 pthread_mutex_t __darshan_core_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+double_buffer* dbuf;
+#endif
+
+
 
 /* internal variable delcarations */
 static int using_mpi = 0;
@@ -159,6 +170,9 @@ static void darshan_core_reduce_max_time(
     void* in_time_v, void* inout_time_v,
     int *len, MPI_Datatype *datatype);
 #endif
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+static void darshan_init_shm()
+#endif
 
 #define DARSHAN_WARN(__err_str, ...) do { \
     darshan_core_fprintf(stderr, "darshan_library_warning: " \
@@ -235,12 +249,18 @@ void darshan_core_initialize(int argc, char **argv)
         /* parse any user-supplied runtime configuration of Darshan */
         /* NOTE: as the ordering implies, environment variables override any
          *       config file parameters
-         */
+         * TODO: add CONFIG_PID_INFO_PATH to init_core 
+         * for shared memory object name with pid
+         * */
         darshan_init_config(&init_core->config);
         darshan_parse_config_file(&init_core->config);
         darshan_parse_config_env(&init_core->config);
         if(my_rank == 0 && init_core->config.dump_config_flag)
             darshan_dump_config(&init_core->config);
+
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+        darshan_init_shm();
+#endif
 
         /* find the job id */
         jobid_str = getenv(init_core->config.jobid_env);
@@ -427,6 +447,9 @@ void darshan_core_shutdown(int write_log)
     int shared_rec_cnt = 0;
 #endif
 
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+    darshan_cleanup_shm();
+#endif
     /* disable darhan-core while we shutdown */
     __DARSHAN_CORE_LOCK();
     if(!__darshan_core)
@@ -2385,6 +2408,32 @@ static void darshan_core_reduce_max_time(void* in_time_v, void* inout_time_v,
     return;
 }
 #endif
+
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+static void darshan_init_shm(){
+    shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0600);
+    ftruncate(shm_fd, sizeof(double_buffer));
+    dbuf = mmap(NULL, sizeof(double_buffer), PORT_READ | PORT_WRITE, MAP_SHARED, shm_fd, 0);
+
+    sem_init(&dbuf->sem_producer, 1, 1); // Initialized to 1 to allow immediate write
+    sem_init(&dbuf->sem_consumer, 1, 0); // Initialized to 0 to block consumer initially
+
+    dbuf->buf_producer = dbuf->buffer_1;
+    dbuf->buf_consumer = dbuf->buffer_2;
+    dbuf->idx_producer = 0;
+    dbuf->idx_consumer = 0;
+
+    return;
+}
+
+static void darshan_cleanup_shm(){
+    munmap(dbuf, sizeof(double_buffer));
+    close(shm_fd);
+    shm_unlink(SHM_NAME);
+
+    return;
+}
+#endif 
 
 /* crude benchmarking hook into darshan-core to benchmark Darshan
  * shutdown overhead using a variety of application I/O workloads

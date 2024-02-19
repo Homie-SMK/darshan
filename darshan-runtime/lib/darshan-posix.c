@@ -36,6 +36,10 @@
 #include "darshan-dxt.h"
 #include "darshan-heatmap.h"
 
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+#include "darshan-posix-realtime-profiling.h"
+#endif
+
 #ifndef HAVE_OFF64_T
 typedef int64_t off64_t;
 #endif
@@ -202,6 +206,11 @@ static pthread_mutex_t posix_runtime_mutex = PTHREAD_RECURSIVE_MUTEX_INITIALIZER
 static int posix_runtime_init_attempted = 0;
 static int my_rank = -1;
 static int darshan_mem_alignment = 1;
+
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+/* extern dbuf variable for realtime profiling */
+extern double_buffer* dbuf;
+#endif
 
 #define POSIX_LOCK() pthread_mutex_lock(&posix_runtime_mutex)
 #define POSIX_UNLOCK() pthread_mutex_unlock(&posix_runtime_mutex)
@@ -421,6 +430,30 @@ static int darshan_mem_alignment = 1;
         __tm1, __tm2, (__rec_ref)->last_meta_end); \
 } while(0)
 
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+#define POSIX_STORE_REALTIME_RECORD(__path, __fd, __op_type, __size) do {  \
+    posix_realtime_record rec; \
+    strncpy(rec.path, __path, PATH_MAX); \
+    rec.path[PATH_MAX - 1] = '\0'; \
+    rec.path = __path; \
+    rec.pid = __darshan_core->pid; \
+    rec.fd = __fd; \
+    rec.op_type = __op_type; \
+    rec.size = __size; \
+    sem_wait(&dbuf->sem_producer); \
+    dbuf->buf_producer[idx_producer++] = rec; \
+    sem_post(&dbuf->sem_producer);  \
+    if(idx_producer == DBUF_MAX_SIZE) { \
+        sem_post(&debuf->sem_consumer); \
+        idx_producer = 0;   \
+        if(dbuf->buf_producer == debuf->buffer_1) { \
+            dbuf->buf_producer = debuf->buffer_2;   \
+        } else {    \
+            dbuf->buf_producer = debuf->buffer_1;   \
+        }   \
+    } \
+} while(0)
+#endif
 
 /**********************************************************
  *      Wrappers for POSIX I/O functions of interest      * 
@@ -456,6 +489,10 @@ int DARSHAN_DECL(open)(const char *path, int flags, ...)
     POSIX_RECORD_OPEN(ret, path, mode, tm1, tm2);
     POSIX_POST_RECORD();
 
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+    POSIX_STORE_REALTIME_RECORD(path, ret, POSIX_OPEN, 0);
+#endif
+
     return(ret);
 }
 
@@ -474,9 +511,14 @@ int DARSHAN_DECL(__open_2)(const char *path, int oflag)
     POSIX_RECORD_OPEN(ret, path, 0, tm1, tm2);
     POSIX_POST_RECORD();
 
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+    POSIX_STORE_REALTIME_RECORD(path, ret, POSIX___OPEN_2, 0);
+#endif
+
     return(ret);
 }
 
+#ifndef __DARSHAN_ENABLE_REALTIME_PROFILING
 int DARSHAN_DECL(open64)(const char *path, int flags, ...)
 {
     int mode = 0;
@@ -506,6 +548,10 @@ int DARSHAN_DECL(open64)(const char *path, int flags, ...)
     POSIX_PRE_RECORD();
     POSIX_RECORD_OPEN(ret, path, mode, tm1, tm2);
     POSIX_POST_RECORD();
+
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+    POSIX_STORE_REALTIME_RECORD(path, ret, POSIX_OPEN64, 0);
+#endif
 
     return(ret);
 }
@@ -547,6 +593,9 @@ int DARSHAN_DECL(openat)(int dirfd, const char *pathname, int flags, ...)
          *    - dirfd equal to CWD
          */
         POSIX_RECORD_OPEN(ret, pathname, mode, tm1, tm2);
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+        POSIX_STORE_REALTIME_RECORD(pathname, ret, POSIX_OPENAT, 0);
+#endif
     }
     else
     {
@@ -575,11 +624,17 @@ int DARSHAN_DECL(openat)(int dirfd, const char *pathname, int flags, ...)
         {
             /* we were able to construct an absolute path */
             POSIX_RECORD_OPEN(ret, tmp_path, mode, tm1, tm2);
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+            POSIX_STORE_REALTIME_RECORD(tmp_path, ret, POSIX_OPENAT, 0);
+#endif
         }
         else
         {
             /* fallback to relative path if Darshan doesn't know dirfd path */
             POSIX_RECORD_OPEN(ret, pathname, mode, tm1, tm2);
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+            POSIX_STORE_REALTIME_RECORD(pathname, ret, POSIX_OPENAT, 0);
+#endif
         }
     }
     POSIX_POST_RECORD();
@@ -624,6 +679,9 @@ int DARSHAN_DECL(openat64)(int dirfd, const char *pathname, int flags, ...)
          *    - dirfd equal to CWD
          */
         POSIX_RECORD_OPEN(ret, pathname, mode, tm1, tm2);
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+        POSIX_STORE_REALTIME_RECORD(pathname, ret, POSIX_OPENAT64, 0);
+#endif
     }
     else
     {
@@ -652,11 +710,17 @@ int DARSHAN_DECL(openat64)(int dirfd, const char *pathname, int flags, ...)
         {
             /* we were able to construct an absolute path */
             POSIX_RECORD_OPEN(ret, tmp_path, mode, tm1, tm2);
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+            POSIX_STORE_REALTIME_RECORD(tmp_path, ret, POSIX_OPENAT64, 0);
+#endif
         }
         else
         {
             /* fallback to relative path if Darshan doesn't know dirfd path */
             POSIX_RECORD_OPEN(ret, pathname, mode, tm1, tm2);
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+            POSIX_STORE_REALTIME_RECORD(pathname, ret, POSIX_OPENAT64, 0);
+#endif
         }
     }
     POSIX_POST_RECORD();
@@ -679,6 +743,9 @@ int DARSHAN_DECL(creat)(const char* path, mode_t mode)
     POSIX_RECORD_OPEN(ret, path, mode, tm1, tm2);
     POSIX_POST_RECORD();
 
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+    POSIX_STORE_REALTIME_RECORD(path, ret, POSIX_CREATE, 0);
+#endif
     return(ret);
 }
 
@@ -696,7 +763,9 @@ int DARSHAN_DECL(creat64)(const char* path, mode_t mode)
     POSIX_PRE_RECORD();
     POSIX_RECORD_OPEN(ret, path, mode, tm1, tm2);
     POSIX_POST_RECORD();
-
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+    POSIX_STORE_REALTIME_RECORD(path, ret, POSIX_CREATE64, 0);
+#endif
     return(ret);
 }
 
@@ -877,6 +946,7 @@ int DARSHAN_DECL(mkostemps)(char* template, int suffixlen, int flags)
     return(ret);
 }
 
+#ifndef __DARSHAN_ENABLE_REALTIME_PROFILING
 ssize_t DARSHAN_DECL(read)(int fd, void *buf, size_t count)
 {
     ssize_t ret;
@@ -895,8 +965,14 @@ ssize_t DARSHAN_DECL(read)(int fd, void *buf, size_t count)
     POSIX_RECORD_READ(ret, fd, 0, 0, aligned_flag, tm1, tm2);
     POSIX_POST_RECORD();
 
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_READ, ret);
+#endif
+
     return(ret);
 }
+#else
+#endif
 
 ssize_t DARSHAN_DECL(write)(int fd, const void *buf, size_t count)
 {
@@ -915,6 +991,10 @@ ssize_t DARSHAN_DECL(write)(int fd, const void *buf, size_t count)
     POSIX_PRE_RECORD();
     POSIX_RECORD_WRITE(ret, fd, 0, 0, aligned_flag, tm1, tm2);
     POSIX_POST_RECORD();
+
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_READ, ret);
+#endif
 
     return(ret);
 }
@@ -937,6 +1017,10 @@ ssize_t DARSHAN_DECL(pread)(int fd, void *buf, size_t count, off_t offset)
     POSIX_RECORD_READ(ret, fd, 1, offset, aligned_flag, tm1, tm2);
     POSIX_POST_RECORD();
 
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PREAD, ret);
+#endif
+
     return(ret);
 }
 
@@ -957,6 +1041,10 @@ ssize_t DARSHAN_DECL(pwrite)(int fd, const void *buf, size_t count, off_t offset
     POSIX_PRE_RECORD();
     POSIX_RECORD_WRITE(ret, fd, 1, offset, aligned_flag, tm1, tm2);
     POSIX_POST_RECORD();
+
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PWRITE, ret);
+#endif
 
     return(ret);
 }
@@ -979,6 +1067,10 @@ ssize_t DARSHAN_DECL(pread64)(int fd, void *buf, size_t count, off64_t offset)
     POSIX_RECORD_READ(ret, fd, 1, offset, aligned_flag, tm1, tm2);
     POSIX_POST_RECORD();
 
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PREAD64, ret);
+#endif
+
     return(ret);
 }
 
@@ -999,6 +1091,10 @@ ssize_t DARSHAN_DECL(pwrite64)(int fd, const void *buf, size_t count, off64_t of
     POSIX_PRE_RECORD();
     POSIX_RECORD_WRITE(ret, fd, 1, offset, aligned_flag, tm1, tm2);
     POSIX_POST_RECORD();
+
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PWRITE64, ret);
+#endif
 
     return(ret);
 }
@@ -1025,6 +1121,10 @@ ssize_t DARSHAN_DECL(readv)(int fd, const struct iovec *iov, int iovcnt)
     POSIX_PRE_RECORD();
     POSIX_RECORD_READ(ret, fd, 0, 0, aligned_flag, tm1, tm2);
     POSIX_POST_RECORD();
+
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_READV, ret);
+#endif
 
     return(ret);
 }
@@ -1053,6 +1153,10 @@ ssize_t DARSHAN_DECL(preadv)(int fd, const struct iovec *iov, int iovcnt, off_t 
     POSIX_RECORD_READ(ret, fd, 1, offset, aligned_flag, tm1, tm2);
     POSIX_POST_RECORD();
 
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PREADV, ret);
+#endif
+
     return(ret);
 }
 
@@ -1078,6 +1182,10 @@ ssize_t DARSHAN_DECL(preadv64)(int fd, const struct iovec *iov, int iovcnt, off6
     POSIX_PRE_RECORD();
     POSIX_RECORD_READ(ret, fd, 1, offset, aligned_flag, tm1, tm2);
     POSIX_POST_RECORD();
+
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PREADV64, ret);
+#endif
 
     return(ret);
 }
@@ -1108,6 +1216,10 @@ ssize_t DARSHAN_DECL(preadv2)(int fd, const struct iovec *iov, int iovcnt, off_t
     POSIX_RECORD_READ(ret, fd, 1, offset, aligned_flag, tm1, tm2);
     POSIX_POST_RECORD();
 
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PREADV2, ret);
+#endif
+
     return(ret);
 }
 
@@ -1133,6 +1245,10 @@ ssize_t DARSHAN_DECL(preadv64v2)(int fd, const struct iovec *iov, int iovcnt, of
     POSIX_PRE_RECORD();
     POSIX_RECORD_READ(ret, fd, 1, offset, aligned_flag, tm1, tm2);
     POSIX_POST_RECORD();
+
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PREADV64V2, ret);
+#endif
 
     return(ret);
 }
@@ -1161,6 +1277,10 @@ ssize_t DARSHAN_DECL(writev)(int fd, const struct iovec *iov, int iovcnt)
     POSIX_RECORD_WRITE(ret, fd, 0, 0, aligned_flag, tm1, tm2);
     POSIX_POST_RECORD();
 
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_WRITEV, ret);
+#endif
+
     return(ret);
 }
 
@@ -1188,6 +1308,10 @@ ssize_t DARSHAN_DECL(pwritev)(int fd, const struct iovec *iov, int iovcnt, off_t
     POSIX_RECORD_WRITE(ret, fd, 1, offset, aligned_flag, tm1, tm2);
     POSIX_POST_RECORD();
 
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PWRITEV, ret);
+#endif
+
     return(ret);
 }
 
@@ -1213,6 +1337,10 @@ ssize_t DARSHAN_DECL(pwritev64)(int fd, const struct iovec *iov, int iovcnt, off
     POSIX_PRE_RECORD();
     POSIX_RECORD_WRITE(ret, fd, 1, offset, aligned_flag, tm1, tm2);
     POSIX_POST_RECORD();
+
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PWRITEV64, ret);
+#endif
 
     return(ret);
 }
@@ -1242,6 +1370,10 @@ ssize_t DARSHAN_DECL(pwritev2)(int fd, const struct iovec *iov, int iovcnt, off_
     POSIX_RECORD_WRITE(ret, fd, 1, offset, aligned_flag, tm1, tm2);
     POSIX_POST_RECORD();
 
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PWRITEV2, ret);
+#endif
+
     return(ret);
 }
 
@@ -1267,6 +1399,10 @@ ssize_t DARSHAN_DECL(pwritev64v2)(int fd, const struct iovec *iov, int iovcnt, o
     POSIX_PRE_RECORD();
     POSIX_RECORD_WRITE(ret, fd, 1, offset, aligned_flag, tm1, tm2);
     POSIX_POST_RECORD();
+
+#ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PWRITEV64V2, ret);
+#endif
 
     return(ret);
 }
