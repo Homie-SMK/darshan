@@ -3,7 +3,7 @@
 #endif
 
 #include <stdio.h>
-#include <sys/syslimits.h>
+#include <limits.h>
 #include <unistd.h>
 #include <semaphore.h>
 #include <stdbool.h>
@@ -50,6 +50,8 @@ enum posix_target_op_type {
     POSIX_PWRITEV2          = 19,
     POSIX_PWRITEV64V2       = 20,
 #endif
+    POSIX_CREATE	    = 21,
+    POSIX_CREATE64	    = 22,
 };
 
 /* A structure storing records for real-time profiling 

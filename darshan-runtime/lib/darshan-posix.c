@@ -209,7 +209,7 @@ static int darshan_mem_alignment = 1;
 
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
 /* extern dbuf variable for realtime profiling */
-extern double_buffer* dbuf;
+extern struct double_buffer* dbuf;
 #endif
 
 #define POSIX_LOCK() pthread_mutex_lock(&posix_runtime_mutex)
@@ -432,7 +432,7 @@ extern double_buffer* dbuf;
 
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
 #define POSIX_STORE_REALTIME_RECORD(__path, __fd, __op_type, __size) do {  \
-    posix_realtime_record rec; \
+    struct posix_realtime_record rec; \
     strncpy(rec.path, __path, PATH_MAX); \
     rec.path[PATH_MAX - 1] = '\0'; \
     rec.pid = __darshan_core->pid; \
@@ -525,7 +525,6 @@ int DARSHAN_DECL(__open_2)(const char *path, int oflag)
     return(ret);
 }
 
-#ifndef __DARSHAN_ENABLE_REALTIME_PROFILING
 int DARSHAN_DECL(open64)(const char *path, int flags, ...)
 {
     int mode = 0;
@@ -953,7 +952,6 @@ int DARSHAN_DECL(mkostemps)(char* template, int suffixlen, int flags)
     return(ret);
 }
 
-#ifndef __DARSHAN_ENABLE_REALTIME_PROFILING
 ssize_t DARSHAN_DECL(read)(int fd, void *buf, size_t count)
 {
     ssize_t ret;
@@ -973,13 +971,11 @@ ssize_t DARSHAN_DECL(read)(int fd, void *buf, size_t count)
     POSIX_POST_RECORD();
 
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
-    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_READ, ret);
+    POSIX_STORE_REALTIME_RECORD("placeholder", fd, POSIX_READ, ret);
 #endif
 
     return(ret);
 }
-#else
-#endif
 
 ssize_t DARSHAN_DECL(write)(int fd, const void *buf, size_t count)
 {
@@ -1000,7 +996,7 @@ ssize_t DARSHAN_DECL(write)(int fd, const void *buf, size_t count)
     POSIX_POST_RECORD();
 
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
-    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_READ, ret);
+    POSIX_STORE_REALTIME_RECORD("placeholder", fd, POSIX_READ, ret);
 #endif
 
     return(ret);
@@ -1025,7 +1021,7 @@ ssize_t DARSHAN_DECL(pread)(int fd, void *buf, size_t count, off_t offset)
     POSIX_POST_RECORD();
 
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
-    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PREAD, ret);
+    POSIX_STORE_REALTIME_RECORD("placeholder", fd, POSIX_PREAD, ret);
 #endif
 
     return(ret);
@@ -1050,7 +1046,7 @@ ssize_t DARSHAN_DECL(pwrite)(int fd, const void *buf, size_t count, off_t offset
     POSIX_POST_RECORD();
 
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
-    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PWRITE, ret);
+    POSIX_STORE_REALTIME_RECORD("placeholder", fd, POSIX_PWRITE, ret);
 #endif
 
     return(ret);
@@ -1075,7 +1071,7 @@ ssize_t DARSHAN_DECL(pread64)(int fd, void *buf, size_t count, off64_t offset)
     POSIX_POST_RECORD();
 
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
-    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PREAD64, ret);
+    POSIX_STORE_REALTIME_RECORD("placeholder", fd, POSIX_PREAD64, ret);
 #endif
 
     return(ret);
@@ -1100,7 +1096,7 @@ ssize_t DARSHAN_DECL(pwrite64)(int fd, const void *buf, size_t count, off64_t of
     POSIX_POST_RECORD();
 
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
-    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PWRITE64, ret);
+    POSIX_STORE_REALTIME_RECORD("placeholder", fd, POSIX_PWRITE64, ret);
 #endif
 
     return(ret);
@@ -1130,7 +1126,7 @@ ssize_t DARSHAN_DECL(readv)(int fd, const struct iovec *iov, int iovcnt)
     POSIX_POST_RECORD();
 
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
-    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_READV, ret);
+    POSIX_STORE_REALTIME_RECORD("placeholder", fd, POSIX_READV, ret);
 #endif
 
     return(ret);
@@ -1161,7 +1157,7 @@ ssize_t DARSHAN_DECL(preadv)(int fd, const struct iovec *iov, int iovcnt, off_t 
     POSIX_POST_RECORD();
 
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
-    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PREADV, ret);
+    POSIX_STORE_REALTIME_RECORD("placeholder", fd, POSIX_PREADV, ret);
 #endif
 
     return(ret);
@@ -1191,7 +1187,7 @@ ssize_t DARSHAN_DECL(preadv64)(int fd, const struct iovec *iov, int iovcnt, off6
     POSIX_POST_RECORD();
 
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
-    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PREADV64, ret);
+    POSIX_STORE_REALTIME_RECORD("placeholder", fd, POSIX_PREADV64, ret);
 #endif
 
     return(ret);
@@ -1224,7 +1220,7 @@ ssize_t DARSHAN_DECL(preadv2)(int fd, const struct iovec *iov, int iovcnt, off_t
     POSIX_POST_RECORD();
 
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
-    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PREADV2, ret);
+    POSIX_STORE_REALTIME_RECORD("placeholder", fd, POSIX_PREADV2, ret);
 #endif
 
     return(ret);
@@ -1254,7 +1250,7 @@ ssize_t DARSHAN_DECL(preadv64v2)(int fd, const struct iovec *iov, int iovcnt, of
     POSIX_POST_RECORD();
 
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
-    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PREADV64V2, ret);
+    POSIX_STORE_REALTIME_RECORD("placeholder", fd, POSIX_PREADV64V2, ret);
 #endif
 
     return(ret);
@@ -1285,7 +1281,7 @@ ssize_t DARSHAN_DECL(writev)(int fd, const struct iovec *iov, int iovcnt)
     POSIX_POST_RECORD();
 
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
-    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_WRITEV, ret);
+    POSIX_STORE_REALTIME_RECORD("placeholder", fd, POSIX_WRITEV, ret);
 #endif
 
     return(ret);
@@ -1316,7 +1312,7 @@ ssize_t DARSHAN_DECL(pwritev)(int fd, const struct iovec *iov, int iovcnt, off_t
     POSIX_POST_RECORD();
 
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
-    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PWRITEV, ret);
+    POSIX_STORE_REALTIME_RECORD("placeholder", fd, POSIX_PWRITEV, ret);
 #endif
 
     return(ret);
@@ -1346,7 +1342,7 @@ ssize_t DARSHAN_DECL(pwritev64)(int fd, const struct iovec *iov, int iovcnt, off
     POSIX_POST_RECORD();
 
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
-    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PWRITEV64, ret);
+    POSIX_STORE_REALTIME_RECORD("placeholder", fd, POSIX_PWRITEV64, ret);
 #endif
 
     return(ret);
@@ -1378,7 +1374,7 @@ ssize_t DARSHAN_DECL(pwritev2)(int fd, const struct iovec *iov, int iovcnt, off_
     POSIX_POST_RECORD();
 
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
-    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PWRITEV2, ret);
+    POSIX_STORE_REALTIME_RECORD("placeholder", fd, POSIX_PWRITEV2, ret);
 #endif
 
     return(ret);
@@ -1408,7 +1404,7 @@ ssize_t DARSHAN_DECL(pwritev64v2)(int fd, const struct iovec *iov, int iovcnt, o
     POSIX_POST_RECORD();
 
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
-    POSIX_STORE_REALTIME_RECORD(NULL, fd, POSIX_PWRITEV64V2, ret);
+    POSIX_STORE_REALTIME_RECORD("placeholder", fd, POSIX_PWRITEV64V2, ret);
 #endif
 
     return(ret);

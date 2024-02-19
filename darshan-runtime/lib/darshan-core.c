@@ -5,7 +5,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-# include <darshan-runtime-config.h>
+#include <darshan-runtime-config.h>
 #endif
 
 #define _XOPEN_SOURCE 500
@@ -67,7 +67,8 @@ atomic_flag __darshan_core_mutex = ATOMIC_FLAG_INIT;
 pthread_mutex_t __darshan_core_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
-double_buffer* dbuf;
+struct double_buffer* dbuf;
+int shm_fd;
 #endif
 
 
@@ -171,7 +172,8 @@ static void darshan_core_reduce_max_time(
     int *len, MPI_Datatype *datatype);
 #endif
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
-static void darshan_init_shm()
+static void darshan_init_shm();
+static void darshan_cleanup_shm();
 #endif
 
 #define DARSHAN_WARN(__err_str, ...) do { \
@@ -2412,11 +2414,29 @@ static void darshan_core_reduce_max_time(void* in_time_v, void* inout_time_v,
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
 static void darshan_init_shm(){
     shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0600);
-    ftruncate(shm_fd, sizeof(double_buffer));
-    dbuf = mmap(NULL, sizeof(double_buffer), PORT_READ | PORT_WRITE, MAP_SHARED, shm_fd, 0);
-
-    sem_init(&dbuf->sem_producer, 1, 1); // Initialized to 1 to allow immediate write
-    sem_init(&dbuf->sem_consumer, 1, 0); // Initialized to 0 to block consumer initially
+    if(shm_fd == -1) {
+	darshan_core_fprintf(stderr, "failed to open shared memory object: %s\n", strerror(errno));
+	return;
+    }
+    int err = ftruncate(shm_fd, sizeof(struct double_buffer));
+    if(err) {
+	darshan_core_fprintf(stderr, "failed ftruncate on shm_fd: %s\n", strerror(errno));
+    	return;
+    }
+    dbuf = (struct double_buffer*)mmap(NULL, sizeof(struct double_buffer), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    if(dbuf == MAP_FAILED) {
+    	darshan_core_fprintf(stderr, "failed to mmap shm_fd: %s\n", strerror(errno));
+    	close(shm_fd);
+ 	return;	
+    }
+    // Initialize sem_producer to 1 to allow immediate write
+    // Initialize sem_consumer to 0 to block consumer initially
+    if (sem_init(&dbuf->sem_producer, 1, 1) == -1 || sem_init(&dbuf->sem_consumer, 1, 0) == -1) {
+        fprintf(stderr, "failed to initialize semaphores: %s\n", strerror(errno));
+        munmap(dbuf, sizeof(struct double_buffer)); // Unmap the memory on error
+        close(shm_fd); // Close the file descriptor on error
+        return;
+    }
 
     dbuf->buf_producer = dbuf->buffer_1;
     dbuf->buf_consumer = dbuf->buffer_2;
@@ -2428,7 +2448,7 @@ static void darshan_init_shm(){
 }
 
 static void darshan_cleanup_shm(){
-    munmap(dbuf, sizeof(double_buffer));
+    munmap(dbuf, sizeof(struct double_buffer));
     close(shm_fd);
     shm_unlink(SHM_NAME);
 

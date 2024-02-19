@@ -244,7 +244,7 @@ if test "x$enable_darshan_runtime" = xyes ; then
    )
    if test x$enableval = xyes; then
       AC_DEFINE(__DARSHAN_ENABLE_REALTIME_PROFILING, [], [Define if realtime profiling is enabled])
-
+   fi
    #
    # Check for specific module enable/disable options
    #
