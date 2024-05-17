@@ -3,10 +3,7 @@
 #endif
 
 #include <stdio.h>
-#include <limits.h>
 #include <unistd.h>
-#include <semaphore.h>
-#include <stdbool.h>
 
 // TODO:
 // Let DBUF_MAX_SIZE be configured by autogen build system
@@ -14,69 +11,89 @@
 #define DBUF_MAX_SIZE 256
 #endif
 
+#ifndef RR_BUF_SIZE
+#define RR_BUF_SIZE 128
+#endif
+
+#define PRODUCER 0
+#define CONSUMER 1
+
 // TODO:
 // Let CONFIG_PID_INFO_PATH be configured by autogen build system
 #ifndef CONFIG_PID_INFO_PATH
-#define SHM_NAME "/double_buffer_shm"
+#define SHM_NAME "HEAD"
 #endif
 
 enum posix_target_op_type {
-    POSIX_OPEN              = 0,
-    POSIX_OPEN64            = 1,
-    POSIX___OPEN_2          = 2,
-    POSIX_OPENAT            = 3,
-    POSIX_OPENAT64          = 4,
-    POSIX_READ              = 5,
-    POSIX_WRITE             = 6,
-    POSIX_PREAD             = 7,
-    POSIX_PWRITE            = 8,
-    POSIX_PREAD64           = 9,
-    POSIX_PWRITE64          = 10,
-    POSIX_READV             = 11,
+    POSIX_OPEN,              
+    POSIX_OPEN64,            
+    POSIX___OPEN_2,          
+    POSIX_OPENAT,            
+    POSIX_OPENAT64,          
+    POSIX_READ,              
+    POSIX_WRITE,
+    POSIX_AIO_READ,
+    POSIX_AIO_READ64,
+    POSIX_AIO_WRITE,
+    POSIX_AIO_WRITE64,             
+    POSIX_PREAD,            
+    POSIX_PWRITE,            
+    POSIX_PREAD64,           
+    POSIX_PWRITE64,          
+    POSIX_READV,             
 #ifdef HAVE_PREADV
-    POSIX_PREADV            = 12,
-    POSIX_PREADV64          = 13,
+    POSIX_PREADV,            
+    POSIX_PREADV64,          
 #endif
 #ifdef HAVE_PREADV2
-    POSIX_PREADV2           = 14,
-    POSIX_PREADV64V2        = 15,
+    POSIX_PREADV2,           
+    POSIX_PREADV64V2,        
 #endif
-    POSIX_WRITEV            = 16,
+    POSIX_WRITEV,            
 #ifdef HAVE_PWRITEV
-    POSIX_PWRITEV           = 17,
-    POSIX_PWRITEV64         = 18,
+    POSIX_PWRITEV,           
+    POSIX_PWRITEV64,         
 #endif
 #ifdef HAVE_PWRITEV2
-    POSIX_PWRITEV2          = 19,
-    POSIX_PWRITEV64V2       = 20,
+    POSIX_PWRITEV2,          
+    POSIX_PWRITEV64V2,       
 #endif
-    POSIX_CREATE	    = 21,
-    POSIX_CREATE64	    = 22,
+    POSIX_CREATE,	    
+    POSIX_CREATE64,
+    POSIX_CLOSE,
+    POSIX_AIO_RETURN_READ,
+    POSIX_AIO_RETURN_READ64,
+    POSIX_AIO_RETURN_WRITE,	
+    POSIX_AIO_RETURN_WRITE64,    
 };
 
 /* A structure storing records for real-time profiling 
-/* regarding open, read, write methods. Filename is filled only by open call.
-/* pid, fd is given for every open, read, write call. As file descriptor is not
-/* unique across multiple processes running simultaneously,
-/* use pid, fd altogether to identify the target file of read, write */
+   regarding open, read, write methods. Filename is filled only by open call.
+   pid, fd is given for every open, read, write call. As file descriptor is not
+   unique across multiple processes running simultaneously,
+   use pid, fd altogether to identify the target file of read, write */
 
-struct posix_realtime_record
+typedef struct realtime_record
 {
-    char path[PATH_MAX];                // path in case op_type is open
-    int pid;                            // pid of the current running process
-    int fd;                             // file descriptor
-    enum posix_target_op_type op_type;  // posix operation type
-    ssize_t size;                       // the size of byte read/write. Has valid value only if op_type is read/write
-};
+    int fd;
+    enum posix_target_op_type type;  // posix operation type
+    unsigned long long size;            // the size of byte read/write. Has valid value only if op_type is read/write
+} realtime_record_t;
 
-struct double_buffer {
-    struct posix_realtime_record buffer_1[DBUF_MAX_SIZE];
-    struct posix_realtime_record buffer_2[DBUF_MAX_SIZE];
-    struct posix_realtime_record* buf_producer;
-    struct posix_realtime_record* buf_consumer;
-    sem_t sem_producer;
-    sem_t sem_consumer;
-    size_t idx_producer;
-    size_t idx_consumer;
-    bool consumed;
-};
+typedef struct head {
+    struct sm_segment* init_seg;
+    struct sm_segment* curr_producer_seg;
+    struct sm_segment* curr_consumer_seg;
+    pthread_rwlock_t rwlock;
+    unsigned int next_seg_idx;
+} head_t;
+
+typedef struct sm_segment {
+    unsigned int rr_idx;
+    realtime_record_t realtime_record_buf[RR_BUF_SIZE];
+    unsigned int role:1; 
+    pthread_mutex_t l;
+    struct sm_segment *next;
+} sm_segment_t;
+
+extern head_t *head;

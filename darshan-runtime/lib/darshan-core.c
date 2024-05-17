@@ -67,8 +67,8 @@ atomic_flag __darshan_core_mutex = ATOMIC_FLAG_INIT;
 pthread_mutex_t __darshan_core_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
-struct double_buffer* dbuf;
-int shm_fd;
+head_t *head = NULL;
+int shm_fd = 0;
 #endif
 
 
@@ -2413,45 +2413,29 @@ static void darshan_core_reduce_max_time(void* in_time_v, void* inout_time_v,
 
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
 static void darshan_init_shm(){
-    shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0600);
+    shm_fd = shm_open(SHM_NAME, O_RDWR, 0666);
     if(shm_fd == -1) {
-	darshan_core_fprintf(stderr, "failed to open shared memory object: %s\n", strerror(errno));
-	return;
+	    darshan_core_fprintf(stderr, "failed to open shared memory object: %s\n", strerror(errno));
+        exit(1);
     }
-    int err = ftruncate(shm_fd, sizeof(struct double_buffer));
+    int err = ftruncate(shm_fd, sizeof(head_t));
     if(err) {
-	darshan_core_fprintf(stderr, "failed ftruncate on shm_fd: %s\n", strerror(errno));
-    	return;
+	    darshan_core_fprintf(stderr, "failed ftruncate on shm_fd: %s\n", strerror(errno));
+        exit(1);
     }
-    dbuf = (struct double_buffer*)mmap(NULL, sizeof(struct double_buffer), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
-    if(dbuf == MAP_FAILED) {
+    head = (head_t *)mmap(NULL, sizeof(head_t), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    if(head == MAP_FAILED) {
     	darshan_core_fprintf(stderr, "failed to mmap shm_fd: %s\n", strerror(errno));
     	close(shm_fd);
- 	return;	
+        exit(1);	
     }
-    // Initialize sem_producer to 1 to allow immediate write
-    // Initialize sem_consumer to 0 to block consumer initially
-    if (sem_init(&dbuf->sem_producer, 1, 1) == -1 || sem_init(&dbuf->sem_consumer, 1, 0) == -1) {
-        fprintf(stderr, "failed to initialize semaphores: %s\n", strerror(errno));
-        munmap(dbuf, sizeof(struct double_buffer)); // Unmap the memory on error
-        close(shm_fd); // Close the file descriptor on error
-        return;
-    }
-
-    dbuf->buf_producer = dbuf->buffer_1;
-    dbuf->buf_consumer = dbuf->buffer_2;
-    dbuf->idx_producer = 0;
-    dbuf->idx_consumer = 0;
-    dbuf->consumed = true;
-
     return;
 }
 
 static void darshan_cleanup_shm(){
-    munmap(dbuf, sizeof(struct double_buffer));
+    munmap(head, sizeof(head_t));
     close(shm_fd);
-    shm_unlink(SHM_NAME);
-
+    //shm_unlink(SHM_NAME);
     return;
 }
 #endif 

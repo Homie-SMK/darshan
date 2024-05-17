@@ -116,7 +116,8 @@ H_SRCS = darshan-common.h \
          uthash.h \
          darshan-dynamic.h \
          utlist.h \
-	 darshan-heatmap.h
+	 darshan-heatmap.h   \
+    darshan-posix-realtime-profiling.h
 
 EXTRA_DIST = $(H_SRCS) \
              darshan-null.c \
