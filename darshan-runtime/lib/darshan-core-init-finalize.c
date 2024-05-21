@@ -102,7 +102,9 @@ __attribute__((constructor)) void serial_init(void)
 {
     char *no_mpi = getenv("DARSHAN_ENABLE_NONMPI");
     if (no_mpi)
+        darshan_core_fprintf(stderr, "calling darshan_core_initialize\n");
         darshan_core_initialize(0, NULL);
+        darshan_core_fprintf(stderr, "successfully called darshan_core_initialize\n");
     return;
 }
 
@@ -110,7 +112,9 @@ __attribute__((destructor)) void serial_finalize(void)
 {
     char *no_mpi = getenv("DARSHAN_ENABLE_NONMPI");
     if (no_mpi)
+        darshan_core_fprintf(stderr, "calling darshan_core_shutdown\n");
         darshan_core_shutdown(1);
+        darshan_core_fprintf(stderr, "successfully called darshan_core_shutdown\n");
     return;
 }
 #endif

@@ -2429,6 +2429,7 @@ static void darshan_init_shm(){
     	close(shm_fd);
         exit(1);	
     }
+    darshan_core_fprintf(stderr, "successful darshan_init_shm\n");
     return;
 }
 
@@ -2436,6 +2437,7 @@ static void darshan_cleanup_shm(){
     munmap(head, sizeof(head_t));
     close(shm_fd);
     //shm_unlink(SHM_NAME);
+    darshan_core_fprintf(stderr, "successful darshan_cleanup_shm\n");
     return;
 }
 #endif 

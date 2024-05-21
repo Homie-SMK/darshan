@@ -208,7 +208,6 @@ static int my_rank = -1;
 static int darshan_mem_alignment = 1;
 
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
-/* extern dbuf variable for realtime profiling */
 int shm_fd;
 #endif
 
@@ -434,23 +433,26 @@ int shm_fd;
 
 #define CREATE_NEW_SEGMENT(__seg) do {  \
     char seg_idx[20];   \
-    sprintf(seg_idx, "%u", head->next_seg_idx); \
-    shm_fd = shm_open(seg_idx, O_CREAT | O_RDWR, 0600); \
+    snprintf(seg_idx, sizeof(seg_idx), "%u", head->next_seg_idx); \
+    shm_fd = shm_open(seg_idx, O_CREAT | O_RDWR, 0666); \
     if(shm_fd == -1) {  \
         fprintf(stderr, "failed shm_open seg_idx: %s\n", seg_idx); \
         perror("shm_open"); \
         exit(1); \
     }   \
-    if(ftruncate(shm_fd, sizeof(head_t)) == -1) {  \
+    darshan_core_fprintf(stderr, "created sm_segment: %s", seg_idx);    \
+    if(ftruncate(shm_fd, sizeof(sm_segment_t)) == -1) {  \
         fprintf(stderr, "failed ftruncate seg_idx: %s\n", seg_idx); \
         perror("ftruncate"); \
         exit(1); \
     }   \
+    darshan_core_fprintf(stderr, "ftruncate success sm_segment: %s", seg_idx);  \
     __seg = mmap(0, sizeof(sm_segment_t), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);   \
     if(__seg == MAP_FAILED) { \
         perror("mmap");  \
         exit(1); \
     }   \
+    darshan_core_fprintf(stderr, "mmap success sm_segment: %s", seg_idx);  \
     (__seg)->rr_idx = 0;    \
     if (!(__seg)->realtime_record_buf) { \
         perror("malloc"); \
@@ -462,37 +464,54 @@ int shm_fd;
 } while(0)
 
 #define POSIX_STORE_REALTIME_RECORD(__fd, __op_type, __size) do {  \
+    darshan_core_fprintf(stderr, "tyring to store realtime record:%d\n", __op_type);    \
     realtime_record_t rec; \
     sm_segment_t *seg, *tmp_seg;    \
     rec.fd = __fd;  \
     rec.type = __op_type; \
     rec.size = __size; \
+    darshan_core_fprintf(stderr, "trying to wrlock head->rwlock\n");    \
     pthread_rwlock_wrlock(&head->rwlock);   \
+    darshan_core_fprintf(stderr, "successfully wrlocked head->rwlock\n");   \
     if(head->init_seg) {    \
         seg = head->curr_producer_seg;  \
         seg->realtime_record_buf[seg->rr_idx++] = rec;  \
         if(seg->rr_idx == RR_BUF_SIZE) {    \
             seg->rr_idx = 0;    \
+            darshan_core_fprintf(stderr, "trying to lock seg->l\n");    \
             pthread_mutex_lock(&seg->l);    \
+            darshan_core_fprintf(stderr, "successfully locked seg->l\n");   \
             seg->role = CONSUMER;   \
             head->curr_consumer_seg = seg;  \
+            darshan_core_fprintf(stderr, "trying to unlock seg->l\n");    \
             pthread_mutex_unlock(&seg->l);  \
+            darshan_core_fprintf(stderr, "successfully unlocked seg->l\n");    \
             tmp_seg = seg;  \
             seg = seg->next;    \
+            darshan_core_fprintf(stderr, "trying to lock seg->l again\n");    \
             pthread_mutex_lock(&seg->l);    \
+            darshan_core_fprintf(stderr, "successfully locked seg->l again\n");   \
             if(seg->role == PRODUCER) { \
+                darshan_core_fprintf(stderr, "trying to unlock seg->l again\n");    \
                 pthread_mutex_unlock(&seg->l);  \
+                darshan_core_fprintf(stderr, "successfully unlocked seg->l again\n");    \
                 head->curr_producer_seg = seg;  \
             } else {    \
+                darshan_core_fprintf(stderr, "trying to unlock seg->l again\n");    \
                 pthread_mutex_unlock(&seg->l);  \
+                darshan_core_fprintf(stderr, "successfully unlocked seg->l again\n");    \
+                darshan_core_fprintf(stderr, "[head->init_seg set] calling CREATE_NEW_SEGMENT\n");   \
                 CREATE_NEW_SEGMENT(seg);    \
+                darshan_core_fprintf(stderr, "[head->init_seg set] successfully called CREATE_NEW_SEGMENT\n");   \
                 seg->next = tmp_seg->next;  \
                 tmp_seg->next = seg;    \
                 head->curr_producer_seg = seg;  \
             }   \
         }   \
     } else {    \
+        darshan_core_fprintf(stderr, "[head->init_seg not set] calling CREATE_NEW_SEGMENT\n");   \
         CREATE_NEW_SEGMENT(seg);    \
+        darshan_core_fprintf(stderr, "[head->init_seg not set] successfully called CREATE_NEW_SEGMENT\n");   \
         head->init_seg = seg;   \
         head->curr_producer_seg = seg;  \
         ++head->next_seg_idx;   \
@@ -539,7 +558,9 @@ int DARSHAN_DECL(open)(const char *path, int flags, ...)
     POSIX_POST_RECORD();
 
 #ifdef __DARSHAN_ENABLE_REALTIME_PROFILING
+    darshan_core_fprintf(stderr, "calling POSIX_STORE_REALTIME_RECORD\n");
     POSIX_STORE_REALTIME_RECORD(ret, POSIX_OPEN, 0);
+    darshan_core_fprintf(stderr, "successfully called POSIX_STORE_REALTIME_RECORD\n");
 #endif
 
     return(ret);

@@ -5,12 +5,6 @@
 #include <stdio.h>
 #include <unistd.h>
 
-// TODO:
-// Let DBUF_MAX_SIZE be configured by autogen build system
-#ifndef DBUF_MAX_SIZE
-#define DBUF_MAX_SIZE 256
-#endif
-
 #ifndef RR_BUF_SIZE
 #define RR_BUF_SIZE 128
 #endif
